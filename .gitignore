@@ -1,0 +1,32 @@
+# Personal data and local configuration
+*.sqlite
+*.sqlite3
+*.db
+*.log
+*.env
+.env*
+CONFIG
+CONFIG_*
+*backup*
+*.jpg
+*.jpeg
+
+# Generated builds, local environments and caches
+dist/
+build/
+work/
+outputs/
+releases/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.spec
+*.exe
+*.zip
+
+# Local diagnostics and editor files
+*-startup-error.txt
+.vscode/
+.idea/

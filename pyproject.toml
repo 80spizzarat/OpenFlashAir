@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openflashair"
+version = "0.1.0"
+description = "Read-only FlashAir communication and synchronization engine"
+requires-python = ">=3.11"
+dependencies = ["Pillow>=10", "pystray==0.19.5"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["openflashair*"]
+
+[tool.setuptools.package-data]
+openflashair = ["*.ico"]
