@@ -250,7 +250,7 @@ class App(ttk.Frame):
         self._log_height=150; self._pane_height=None; self._sash_after=None; self.content_pane.bind('<Configure>',self._pane_resized); self.content_pane.bind('<ButtonRelease-1>',self._remember_log_height)
         self.columnconfigure(1,weight=1); self.rowconfigure(5,weight=1); root.columnconfigure(0,weight=1); root.rowconfigure(0,weight=1)
         self._compact_header=None; self._compact_sync_dashboard=None; self._header_layout_after=None; self.bind('<Configure>',self._header_resize,add='+'); self.after_idle(self._apply_header_layout)
-        self._main_window=root; self._geometry_after=None; self._tray=None; self._tray_actions=queue.SimpleQueue(); self._tray_hidden=False; self._tray_poll_after=None; self._restore_window_geometry(); root.bind('<Configure>',self._remember_window_geometry,add='+'); root.bind('<Unmap>',self._main_window_unmapped,add='+'); root.protocol('WM_DELETE_WINDOW',self._close_main_window)
+        self._main_window=root; self._last_window_state='normal'; self._geometry_after=None; self._tray=None; self._tray_actions=queue.SimpleQueue(); self._tray_hidden=False; self._tray_poll_after=None; self._restore_window_geometry(); root.bind('<Configure>',self._remember_window_geometry,add='+'); root.bind('<Unmap>',self._main_window_unmapped,add='+'); root.protocol('WM_DELETE_WINDOW',self._close_main_window)
         self._apply_log_state()
     def _create_settings_button(self):
         """A full-size Canvas button keeps the approved vector gear sharp at any DPI."""
@@ -302,6 +302,10 @@ class App(ttk.Frame):
     def _remember_window_geometry(self,event=None):
         if getattr(self,'_closing',False): return
         if event is not None and event.widget is not self._main_window: return
+        try:
+            state=self._main_window.state()
+            if state in ('normal','zoomed'): self._last_window_state=state
+        except tk.TclError: return
         if self._geometry_after: self.after_cancel(self._geometry_after)
         self._geometry_after=self.after(500,self._save_window_geometry)
     def _save_window_geometry(self):
@@ -396,7 +400,8 @@ class App(ttk.Frame):
                     if self._main_window.state() == 'withdrawn': self._main_window.iconify()
                     self.add('System tray is unavailable; application remains minimized in the taskbar.')
                 elif action == 'restore':
-                    self._tray_hidden=False; self._main_window.deiconify(); self._main_window.state('normal'); self._main_window.lift()
+                    previous_state=getattr(self,'_last_window_state','normal')
+                    self._tray_hidden=False; self._main_window.deiconify(); self._main_window.state(previous_state); self._main_window.lift()
                     try: self._main_window.focus_force()
                     except tk.TclError: pass
                 elif action == 'toggle_auto':
@@ -1588,14 +1593,30 @@ class App(ttk.Frame):
                 self.gallery_canvas.itemconfigure(tile['badge_shape'],state='hidden')
                 self.gallery_canvas.itemconfigure(tile['badge_text'],state='hidden')
 def main():
+    from .single_instance import SingleInstance
+    guard = SingleInstance()
+    if not guard.primary:
+        guard.close()
+        return
     # Windows reads a taskbar identity when the top-level window is created.
     # Setting it first prevents the app from inheriting a generic Python/Tk ID.
-    configure_windows_taskbar_identity()
-    root=tk.Tk(); root.title('OpenFlashAir')
     try:
-        root.iconbitmap(default=str(application_icon_path()))
-    except tk.TclError as exc:
-        root.destroy()
-        raise RuntimeError(f'Could not apply the OpenFlashAir application icon: {application_icon_path()}') from exc
-    App(root); root.mainloop()
+        configure_windows_taskbar_identity()
+        root=tk.Tk(); root.title('OpenFlashAir')
+        try:
+            root.iconbitmap(default=str(application_icon_path()))
+        except tk.TclError as exc:
+            root.destroy()
+            raise RuntimeError(f'Could not apply the OpenFlashAir application icon: {application_icon_path()}') from exc
+        app = App(root)
+        def check_launch():
+            if guard.restore_requested():
+                app._tray_actions.put('restore')
+                if app._tray_poll_after is None:
+                    app._process_tray_actions()
+            root.after(100, check_launch)
+        root.after(100, check_launch)
+        root.mainloop()
+    finally:
+        guard.close()
 if __name__=='__main__': main()
